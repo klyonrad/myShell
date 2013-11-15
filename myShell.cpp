@@ -17,6 +17,18 @@ using std::endl;
 
 pid_t pid = 0;
 bool shouldRunInBackground = false; // global >.< because I don't wanna touch my structure anymore.
+bool anotherAppInForeground = false; // toDo: research better if I could use waitstatus for this purpose
+
+
+void signalhandler(int s)
+{	
+	if (anotherAppInForeground == true) {
+		cout << "I tried to kill him, John." << endl;
+		kill (pid, SIGINT);	
+	}
+}
+
+
 
 /* from http://stackoverflow.com/a/236803/1796645 */
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
@@ -58,12 +70,22 @@ bool parse(std::string inputline, char *arglist[]) // return false if string is 
 
 int main(void)
 {
+	struct sigaction sigIntHandler;
+	
+	sigIntHandler.sa_handler = signalhandler;
+	sigemptyset(&sigIntHandler.sa_mask);
+	sigIntHandler.sa_flags = 0;
+	
+	sigaction(SIGINT, &sigIntHandler, NULL);
+	
 	std::string inputline;
 	char *arglist[64]; // arbitrary size. Don't wanna deal with that issue right now. Yeah I know it's bad style.
 	
 	cout << "Hello. This is myShell." << endl;
    	while (true) {
    		shouldRunInBackground = false;
+   		anotherAppInForeground = false;
+   		// show proper prompt:
    		if (getuid()) cout << "not root :( $ ";
    		else cout << "yeah root. Plz don't use this # ";
 		std::getline(std::cin, inputline); // for the whole line. cin >> sucks.
@@ -71,7 +93,7 @@ int main(void)
 
 		if (parse (inputline, arglist) == false) break; // exit when line is empty		
 		
-		char exitcommand[] = "logout"; // for some reason it didn't work the other way; so I used strcmp
+		char exitcommand[] = "logout";
 		if ( !strcmp (arglist[0], exitcommand)) 
 			return 0;
 				
@@ -83,6 +105,7 @@ int main(void)
 			if (shouldRunInBackground == false)
 			{
 				int waitstatus;
+				anotherAppInForeground = true;
 				waitpid (pid, &waitstatus, 0);
 			}
 			else cout << "[" << pid << "] sent to background." << endl;	
